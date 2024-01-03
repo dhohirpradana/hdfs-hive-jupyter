@@ -1,0 +1,107 @@
+version: '3'
+services:
+  namenode:
+    image: dhohirp/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    container_name: namenode
+    volumes:
+      - /opt/namenode:/hadoop/dfs/name
+      - ./hadoop/namenode:/etc/hadoop
+    environment:
+      - CLUSTER_NAME=hive
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "50070:50070"
+
+  datanode1:
+    image: dhohirp/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode
+    volumes:
+      - /opt/datanode1:/hadoop/dfs/data
+      #- ./hadoop/datanode1:/etc/hadoop
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    depends_on:
+      - namenode
+    ports:
+      - "50075:50075"
+    
+  datanode2:
+    image: dhohirp/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode2
+    volumes:
+      - /opt/datanode2:/hadoop/dfs/data
+      #- ./hadoop/datanode2:/etc/hadoop
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    depends_on:
+      - namenode
+    ports:
+      - "50076:50075"
+      
+  datanode3:
+    image: dhohirp/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode3
+    volumes:
+      - /opt/datanode3:/hadoop/dfs/data
+      #- ./hadoop/datanode3:/etc/hadoop
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    depends_on:
+      - namenode
+    ports:
+      - "50077:50075"
+
+  hive-server:
+    image: dhohirp/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    volumes:
+      - /opt/hql:/hql
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    depends_on:
+      - hive-metastore
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+
+  hive-metastore:
+    image: dhohirp/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode1:50075 datanode2:50075 datanode3:50075 hive-metastore-postgresql:5432"
+    depends_on:
+      - hive-metastore-postgresql
+    ports:
+      - "9083:9083"
+
+  hive-metastore-postgresql:
+    image: dhohirp/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    volumes:
+      - /opt/metastore-postgresql/postgresql/data:/var/lib/postgresql/data
+    depends_on:
+      - datanode1
+      - datanode2
+
+  pyspark-notebook:
+    image: dhohirp/pyspark-jupyter
+    container_name: pyspark-jupyter
+    volumes:
+      - /opt/notebooks:/home/jovyan/work
+    ports:
+      - "8888:8888"  # Map Jupyter port to access it on localhost
+    environment:
+      - SERVICE_PRECONDITION=namenode:50070 datanode1:50075 datanode2:50075 datanode3:50075 hive-metastore-postgresql:5432
